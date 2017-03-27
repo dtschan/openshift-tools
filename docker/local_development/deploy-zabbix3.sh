@@ -1,0 +1,1 @@
+/root/openshift-scripts/deploy-zabbix3.sh

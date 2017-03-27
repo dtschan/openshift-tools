@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  annotations:
+    openshift.io/generated-by: OpenShiftNewApp
+  creationTimestamp: null
+  generation: 1
+  labels:
+    app: oso-centos7-host-monitoring
+  name: oso-centos7-host-monitoring
+spec:
+  replicas: 1
+  selector:
+    app: oso-centos7-host-monitoring
+    deploymentconfig: oso-centos7-host-monitoring
+  strategy:
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      annotations:
+        openshift.io/container.oso-centos7-host-monitoring.image.entrypoint: '["/bin/sh","-c","/usr/local/bin/start.sh"]'
+        openshift.io/generated-by: OpenShiftNewApp
+      creationTimestamp: null
+      labels:
+        app: oso-centos7-host-monitoring
+        deploymentconfig: oso-centos7-host-monitoring
+    spec:
+      containers:
+      - image: docker.io/openshifttools/oso-centos7-host-monitoring@sha256:294151b444eb45b82b352fe950daf4ff4fbced75519a57b14506700b76b05d88
+        imagePullPolicy: Always
+        name: oso-centos7-host-monitoring
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        volumeMounts:
+        - mountPath: /container_setup
+          name: monitoring-config
+        - mountPath: /sys
+          name: sys
+        - mountPath: /sys/fs/selinux
+          name: selinux
+        - mountPath: /var/lib/docker
+          name: docker
+        - mountPath: /var/lib/docker.sock
+          name: docker-sock
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext: {}
+      serviceAccount: host-monitoring
+      serviceAccountName: host-monitoring
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: monitoring-config
+        name: monitoring-config
+      - hostPath:
+          path: /sys
+        name: sys
+      - hostPath:
+          path: /sys/fs/selinux
+        name: selinux
+      - hostPath:
+          path: /var/lib/docker
+        name: docker
+      - hostPath:
+          path: /var/lib/docker.sock
+        name: docker-sock
+  test: false
+  triggers:
+  - type: ConfigChange
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - oso-centos7-host-monitoring
+      from:
+        kind: ImageStreamTag
+        name: oso-centos7-host-monitoring:latest
+        namespace: monitoring
+    type: ImageChange
+status: {}
