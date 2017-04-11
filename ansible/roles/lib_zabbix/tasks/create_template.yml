@@ -24,6 +24,8 @@
   - "{{ lzbx_itemprototype_applications }}"
   register: created_application
 
+#- debug: msg="{{ template.zitems }}"
+
 - name: Create Items
   zbx_item:
     zbx_server: "{{ server }}"
@@ -45,7 +47,9 @@
     delta: "{{ item.delta | default(0, True) }}"
     params: "{{ item.params | default(omit, True) }}"
   with_items: "{{ template.zitems | default([]) }}"
+  when: "item.applications is defined"
   register: created_items
+  tags: debug
 
 - name: Create Web Checks
   zbx_httptest:
