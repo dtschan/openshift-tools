@@ -16,3 +16,4 @@
 gce.ini
 multi_ec2.yaml
 .vagrant
+*.retry

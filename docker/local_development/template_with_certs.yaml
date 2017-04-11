@@ -1,0 +1,512 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: ops-cent7-zabbix-monitoring
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      name: ${DATABASE_SERVICE_NAME}
+    name: ${DATABASE_SERVICE_NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${DATABASE_SERVICE_NAME}
+    strategy:
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${DATABASE_SERVICE_NAME}
+      spec:
+        containers:
+        - env:
+          - name: MYSQL_USER
+            value: ${MYSQL_USER}
+          - name: MYSQL_PASSWORD
+            value: ${MYSQL_PASSWORD}
+          - name: MYSQL_DATABASE
+            value: ${MYSQL_DATABASE}
+          - name: MYSQL_ROOT_PASSWORD
+            value: ${MYSQL_PASSWORD}
+          image: openshift/mysql-55-centos7:latest
+          imagePullPolicy: Always
+          name: mysql
+          ports:
+          - containerPort: 3306
+            name: tcp-3306
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - mysql
+        from:
+          kind: ImageStreamTag
+          name: mysql:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      name: ${ZABBIX_SERVER}
+    name: ${ZABBIX_SERVER}
+  spec:
+    replicas: 1
+    selector:
+      name: ${ZABBIX_SERVER}
+    strategy:
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${ZABBIX_SERVER}
+      spec:
+        containers:
+        - env:
+          - name: OO_PAUSE_ON_START
+            value: 'false'
+          - name: MYSQL_USER
+            value: ${MYSQL_USER}
+          - name: MYSQL_PASSWORD
+            value: ${MYSQL_PASSWORD}
+          - name: MYSQL_DATABASE
+            value: ${MYSQL_DATABASE}
+          - name: MYSQL_HOST
+            value: ${DATABASE_SERVICE_NAME}
+          image: openshifttools/oso-centos7-zabbix-server:latest
+          imagePullPolicy: Always
+          name: ${ZABBIX_SERVER}
+          ports:
+          - containerPort: 10050
+            name: tcp-10050
+            protocol: TCP
+          - containerPort: 10051
+            name: tcp-10051
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /secrets
+            name: monitoring-secrets
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: monitoring-secrets
+          secret:
+            secretName: monitoring-secrets
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${ZABBIX_SERVER}
+        from:
+          kind: ImageStreamTag
+          name: oso-cent7-zabbix-server:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      name: oso-cent7-zabbix-web
+    name: oso-cent7-zabbix-web
+  spec:
+    replicas: 1
+    selector:
+      name: oso-cent7-zabbix-web
+    strategy:
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          name: oso-cent7-zabbix-web
+      spec:
+        containers:
+        - env:
+          - name: OO_PAUSE_ON_START
+            value: "false"
+          - name: ZABBIX_SERVER_HOSTNAME
+            value: ${ZABBIX_SERVER}
+          - name: MYSQL_USER
+            value: ${MYSQL_USER}
+          - name: MYSQL_PASSWORD
+            value: ${MYSQL_PASSWORD}
+          - name: MYSQL_DATABASE
+            value: ${MYSQL_DATABASE}
+          - name: MYSQL_HOST
+            value: ${DATABASE_SERVICE_NAME}
+          image: openshifttools/oso-centos7-zabbix-web:latest
+          imagePullPolicy: Always
+          name: oso-cent7-zabbix-web
+          ports:
+          - containerPort: 80
+            name: tcp-80
+            protocol: TCP
+          - containerPort: 443
+            name: tcp-443
+            protocol: TCP
+          resources: {}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - oso-cent7-zabbix-web
+        from:
+          kind: ImageStreamTag
+          name: oso-cent7-zabbix-web:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      name: oso-cent7-zagg-web
+    name: oso-cent7-zagg-web
+  spec:
+    replicas: 1
+    selector:
+      name: oso-cent7-zagg-web
+    strategy:
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          name: oso-cent7-zagg-web
+      spec:
+        containers:
+        - env:
+          - name: OO_PAUSE_ON_START
+            value: 'false'
+          image: openshifttools/oso-centos7-zagg-web:latest
+          imagePullPolicy: Always
+          name: oso-cent7-zagg-web
+          resources: {}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /secrets
+            name: monitoring-secrets
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: monitoring-secrets
+          secret:
+            secretName: monitoring-secrets
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - oso-cent7-zagg-web
+        from:
+          kind: ImageStreamTag
+          name: oso-cent7-zagg-web:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: zabbix-web-ssl-route
+  spec:
+    host: ${ZABBIX_WEB_URL}
+    tls:
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIDjzCCAnegAwIBAgIJAPPrKx7r3f5LMA0GCSqGSIb3DQEBCwUAMF4xCzAJBgNV
+        BAYTAlVTMRcwFQYDVQQIDA5Ob3J0aCBDYXJvbGluYTEQMA4GA1UEBwwHUmFsZWln
+        aDEVMBMGA1UECgwMTG9jYWwgWmFiYml4MQ0wCwYDVQQDDARyb290MB4XDTE3MDMy
+        NzA4NDkzOFoXDTIwMDExNTA4NDkzOFowXjELMAkGA1UEBhMCVVMxFzAVBgNVBAgM
+        Dk5vcnRoIENhcm9saW5hMRAwDgYDVQQHDAdSYWxlaWdoMRUwEwYDVQQKDAxMb2Nh
+        bCBaYWJiaXgxDTALBgNVBAMMBHJvb3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
+        ggEKAoIBAQDakMPRA1AqTOJBn6/vJ+C7BofZHoYiXIORaY2mVpiJc39/LF8AOH1E
+        tjhx4+7O/a8jo7EF9K3a3yuRcdDnN4rI4+4z+9GWSTi7V22i0hFpgIfUyLi+viHn
+        fye1YJpKe+Nmpr+mk+Dua6w4V1xDIbSglo9yGSorBavv33SkUYN7fZ1ULn2ihzFF
+        mz6FVnV/wzmioqCioONJkwmTGjIaEVgudhAc+0lS9QFCrUN3tBYMiZ8z2X3VeW+3
+        pL2ymoDNSxA258At/hY8P6vroXITl/GtI2g0pvCqibaJ3a4SOJTpOaV20IZFujoW
+        6cItXbBoJTzCP+hG7iGA/+xXitr4PhzrAgMBAAGjUDBOMB0GA1UdDgQWBBQWUTdP
+        U7W5FLiuNmqUOHDfaqqR7zAfBgNVHSMEGDAWgBQWUTdPU7W5FLiuNmqUOHDfaqqR
+        7zAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQALUaiLG5kgz7jqC0Ga
+        l7O+s7/YN7I4IVohmNu4dcKeiMA9lwBVwO40OiBReMiE04T/fo4i2b6ksoXUn5aJ
+        1ZLo74xttgD/d+/vdMMK5YMGdP7rgaKtYhZct9/Yvfam1E+TZ/Daja6bFo/uNhOZ
+        igwJmSp8X8lYTg0I681IKH/HEKnKV+RDaAEMLvrL0OKn9azqMG0h2+sfPzMJAekI
+        sEVUtRAG5cI3Dr4kFhtGUptS15BELOsyjboEcSRpxaOoeQobk7CggqpAOo9Keyvn
+        4TatC5zItvFQqNFD1LSQIKK41MuTiCh2/QkmpByqr21rtmAw2LN4jfEHxkQuNE74
+        /vMW
+        -----END CERTIFICATE-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIDRjCCAi4CCQCwIBM4OKBu5zANBgkqhkiG9w0BAQsFADBeMQswCQYDVQQGEwJV
+        UzEXMBUGA1UECAwOTm9ydGggQ2Fyb2xpbmExEDAOBgNVBAcMB1JhbGVpZ2gxFTAT
+        BgNVBAoMDExvY2FsIFphYmJpeDENMAsGA1UEAwwEcm9vdDAeFw0xNzAzMjcwODQ5
+        MzhaFw0xODA4MDkwODQ5MzhaMGwxCzAJBgNVBAYTAlVTMRcwFQYDVQQIDA5Ob3J0
+        aCBDYXJvbGluYTEQMA4GA1UEBwwHUmFsZWlnaDETMBEGA1UECgwKWmFiYml4IFdl
+        YjEdMBsGA1UEAwwUb3NvLWNlbnQ3LXphYmJpeC13ZWIwggEiMA0GCSqGSIb3DQEB
+        AQUAA4IBDwAwggEKAoIBAQDkeLVb8DK07XmqpVcAHWlVSMdwOfmP1WwAPZTHDgy7
+        UznxGa1Zh1XalYyg9+y0eNwbTAimsYz3MOKFBHIyTsn3U/URvgHxpVlUVA5SDxJg
+        bwTL5ntvO9NRB8+dOFBi763pvKUVSQgdSh2EuY82g8g+pwHB+16cbC9HRyawilhv
+        Myy3r7+yOgc6eQcZqS6OkFd6aPY6NSLGG3HlzVTEXyS1RH7G0/25eirYJtHjuIg7
+        GovslUXaO4yZlM7SBLWVMSmD4Li8Y9bTNqRPjGjHGhtTZSf8WRpV+kgdJpWbaFA3
+        G4ri9c2lnKbkcAzGqAh6Txqs9smgB4/WFxn+I0sdr9MdAgMBAAEwDQYJKoZIhvcN
+        AQELBQADggEBANM1SRCeWZhcLOv2qU46Hcvu3YLE663O5rh41/KFkE94u7EfHoDB
+        LpTt/OaW8kWMoloZ+bjjVfObuYjwURJqcrZCg2fpXIZSzDZGCINT0T5k9xN7WehX
+        DTKLJLBiZWdWmPjPluuQRwCtnbZFx3EuSivMB1WfpnonFN1bntBAzzrYX67VLwp5
+        13sH3+7lo+3EEmQA4D+mbHGw0Couo+++5jJIQCHH2hVCNjRIWPpCFTDofnbWtXCN
+        XBwfEQTY7vrrZ8MHJGTGKXAyQ6NKpbFS6bZHXqqHOsD7RRW/dj+jSe4kUi4I/avK
+        igFOiqDY9MZyaz0OY9cXlxyuujbTfA6JgAw=
+        -----END CERTIFICATE-----
+      key: |-
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpQIBAAKCAQEA5Hi1W/AytO15qqVXAB1pVUjHcDn5j9VsAD2Uxw4Mu1M58Rmt
+        WYdV2pWMoPfstHjcG0wIprGM9zDihQRyMk7J91P1Eb4B8aVZVFQOUg8SYG8Ey+Z7
+        bzvTUQfPnThQYu+t6bylFUkIHUodhLmPNoPIPqcBwftenGwvR0cmsIpYbzMst6+/
+        sjoHOnkHGakujpBXemj2OjUixhtx5c1UxF8ktUR+xtP9uXoq2CbR47iIOxqL7JVF
+        2juMmZTO0gS1lTEpg+C4vGPW0zakT4xoxxobU2Un/FkaVfpIHSaVm2hQNxuK4vXN
+        pZym5HAMxqgIek8arPbJoAeP1hcZ/iNLHa/THQIDAQABAoIBAAz/ENH6B+hi2djr
+        LtfC1IsVaMLpiVi1Oz+IQT5RfkfppBIi88lz+V5Fw4okkEJz3ZFv8c4Jq4skLL6E
+        UjqqYLLBA9/Ofy3PyhUR8v6X/OOfbRZsNflN3eduGlFHMstt9uak5H8heGSyIpu6
+        MntXY7yso1z1f5xGSyoy0fCY7g7lLs71Av4HMMu+lVjUNzhk9JDPfr+L4nf46RK6
+        yUTzL4hSRfpUfg2ks/gYyrzu6eCw6uAuvAm37rkBd8p0eOwA0eHMgb0khpYrrDYc
+        vTrC/r3S+lK39+Apa2sRq7wldbmKXFRoYt8Hy4F31gQMRmx7qeFoN78vW+LdZhgf
+        eBcGr8ECgYEA+Wi4lfwbYzRGTBiPcIBqMUBB46h1sp9g29cDhCLv2jaE9C6CNoFN
+        63TIsDdHoeT16kXZLbXsdoXd56adbrEFOEVQXwt58edtWWxKnp+sjinYfoYnh5eV
+        USIxV7QRhwtky4Y2IBABmbwLnorPxVOUGAwq/UE13hfbIeQnWnlTj0sCgYEA6oJX
+        tzyP44xIoTmTsjPEkpqPewNIo4aiV7sFa5EyjdM5nYGgT1AnvfW4CAKTl0Gf/d4b
+        8Rs/H+and2F/N3oGuzpHl6exmpKirIzxWqtCDI6DUBMm9RHOvqNCyH3H0yC4irVr
+        rRM5pCTd368NYVBWlyfLK3M06rkzqba3ziLL3jcCgYEAoKl15qAdYF1nP1O+6uC+
+        B3X2O9nj36nNcjBiwnbi/TWLleRz2vqWoCt9sA4cJczhIQXXrht39K2tUbFBzvFX
+        hHUaHe+9oTfMeANLWj1PodCQ9ogi5LSf6kDVekKz28NaLcUKDsNg1JCPB5Ux3FJH
+        nuoPs06TjbreXUmklCJ90lsCgYEAvNCLjYZemCjYRa+VIrMZv6xgf/wJ3VhGl/qG
+        B7DVkmmShyXajGGOTh1suk5QxUVaa04NE1kLv0S4a599jY5box3ujMXBcyJDhkjI
+        /2bKfE+2nJ9/C2z2GHpdCA51+KDs1Qnzk1vaWjYwyqwoSsUjovqwU+Cjp6XMWgY7
+        Aeb0XIsCgYEA1z9JvvgJRsPbRWTi/8uke76x/A5wWg45wM7XvcNEsKWKITICzyMa
+        H3EzrstAv3pz/U1FqI3Fk+q+kr5rPyhau2EHvZx+2lODhN1cGbR7Yy5Y9wxbbhQj
+        tgrDndlVuUCNWwj3PspZd013VkzkGi1stJAHOVfjbtBcoV9e/7x4GtU=
+        -----END RSA PRIVATE KEY-----
+    to:
+      kind: Service
+      name: oso-cent7-zabbix-web
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: zagg-web-ssl-route
+  spec:
+    host: ${ZAGG_WEB_URL}
+    tls:
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIDjzCCAnegAwIBAgIJAPPrKx7r3f5LMA0GCSqGSIb3DQEBCwUAMF4xCzAJBgNV
+        BAYTAlVTMRcwFQYDVQQIDA5Ob3J0aCBDYXJvbGluYTEQMA4GA1UEBwwHUmFsZWln
+        aDEVMBMGA1UECgwMTG9jYWwgWmFiYml4MQ0wCwYDVQQDDARyb290MB4XDTE3MDMy
+        NzA4NDkzOFoXDTIwMDExNTA4NDkzOFowXjELMAkGA1UEBhMCVVMxFzAVBgNVBAgM
+        Dk5vcnRoIENhcm9saW5hMRAwDgYDVQQHDAdSYWxlaWdoMRUwEwYDVQQKDAxMb2Nh
+        bCBaYWJiaXgxDTALBgNVBAMMBHJvb3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
+        ggEKAoIBAQDakMPRA1AqTOJBn6/vJ+C7BofZHoYiXIORaY2mVpiJc39/LF8AOH1E
+        tjhx4+7O/a8jo7EF9K3a3yuRcdDnN4rI4+4z+9GWSTi7V22i0hFpgIfUyLi+viHn
+        fye1YJpKe+Nmpr+mk+Dua6w4V1xDIbSglo9yGSorBavv33SkUYN7fZ1ULn2ihzFF
+        mz6FVnV/wzmioqCioONJkwmTGjIaEVgudhAc+0lS9QFCrUN3tBYMiZ8z2X3VeW+3
+        pL2ymoDNSxA258At/hY8P6vroXITl/GtI2g0pvCqibaJ3a4SOJTpOaV20IZFujoW
+        6cItXbBoJTzCP+hG7iGA/+xXitr4PhzrAgMBAAGjUDBOMB0GA1UdDgQWBBQWUTdP
+        U7W5FLiuNmqUOHDfaqqR7zAfBgNVHSMEGDAWgBQWUTdPU7W5FLiuNmqUOHDfaqqR
+        7zAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQALUaiLG5kgz7jqC0Ga
+        l7O+s7/YN7I4IVohmNu4dcKeiMA9lwBVwO40OiBReMiE04T/fo4i2b6ksoXUn5aJ
+        1ZLo74xttgD/d+/vdMMK5YMGdP7rgaKtYhZct9/Yvfam1E+TZ/Daja6bFo/uNhOZ
+        igwJmSp8X8lYTg0I681IKH/HEKnKV+RDaAEMLvrL0OKn9azqMG0h2+sfPzMJAekI
+        sEVUtRAG5cI3Dr4kFhtGUptS15BELOsyjboEcSRpxaOoeQobk7CggqpAOo9Keyvn
+        4TatC5zItvFQqNFD1LSQIKK41MuTiCh2/QkmpByqr21rtmAw2LN4jfEHxkQuNE74
+        /vMW
+        -----END CERTIFICATE-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIDQjCCAioCCQCwIBM4OKBu6DANBgkqhkiG9w0BAQsFADBeMQswCQYDVQQGEwJV
+        UzEXMBUGA1UECAwOTm9ydGggQ2Fyb2xpbmExEDAOBgNVBAcMB1JhbGVpZ2gxFTAT
+        BgNVBAoMDExvY2FsIFphYmJpeDENMAsGA1UEAwwEcm9vdDAeFw0xNzAzMjcwODQ5
+        MzhaFw0xODA4MDkwODQ5MzhaMGgxCzAJBgNVBAYTAlVTMRcwFQYDVQQIDA5Ob3J0
+        aCBDYXJvbGluYTEQMA4GA1UEBwwHUmFsZWlnaDERMA8GA1UECgwIWmFnZyBXZWIx
+        GzAZBgNVBAMMEm9zby1jZW50Ny16YWdnLXdlYjCCASIwDQYJKoZIhvcNAQEBBQAD
+        ggEPADCCAQoCggEBAKlFegiab6GlbqiaSxeZYZI6ths6/hRHD3tNwS/+O5m8u2RO
+        FdJnwM/MY8ygcEk2ar5dHMsvO9fNXKVKpHEnxT80XjYL6qxtbpVsNGVj7uZkP5BV
+        7NHy9AY2KbV6pbEfLIfxA8NWiigCr+H8lYGug+/4TgVo+cQdcyUxl4J7axkY4IRn
+        0wlxoH8NG9FdVLXu25Rbggx81bmSdvVvXgL51+GGAxfQWHF/yd1SfpqKNS2f1ed+
+        /JQBunkzsl0GmjPGFUBIPcqyvOX1PdXzF3+oaoiY8VeFa1M28miqgu9BiXyqfzxM
+        kXmdtZ8FWxrkEPkE8eb8ADazP7kFDgDwIE8eiMkCAwEAATANBgkqhkiG9w0BAQsF
+        AAOCAQEAPp6z8Z4K5iCd6SMr5FUu/uvQsZTIxfL/yUue2XiePIJ4vBHmVEAImFtB
+        LO8oS+mk0mH4cJwmw/ialJ3JoZct2AE+OB0FElLq2ZtMVxqD9ezhgwYK9uVtGUFt
+        UPDkQjy60QD9b4bDHB5z8ya1qwEPsD6Er53q5sqaBAwE9qJ+lon8mcj2l9yU+l6W
+        ewmqW39zlIkoMRgJ61tr8cRaPpp7XOls/j31h/gyVYu7NRM/s3W2nyfNDu8c7CP4
+        sj57BN+YJw+Ef3XszBV6R3xep0a3HF8FACPg+/m3ovs3JAv0SFjhXYJynE3hac4v
+        D+Mv/FFxH+fAmOsVs7oFtFaad08Y6w==
+        -----END CERTIFICATE-----
+      key: |-
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAqUV6CJpvoaVuqJpLF5lhkjq2Gzr+FEcPe03BL/47mby7ZE4V
+        0mfAz8xjzKBwSTZqvl0cyy87181cpUqkcSfFPzReNgvqrG1ulWw0ZWPu5mQ/kFXs
+        0fL0BjYptXqlsR8sh/EDw1aKKAKv4fyVga6D7/hOBWj5xB1zJTGXgntrGRjghGfT
+        CXGgfw0b0V1Ute7blFuCDHzVuZJ29W9eAvnX4YYDF9BYcX/J3VJ+moo1LZ/V5378
+        lAG6eTOyXQaaM8YVQEg9yrK85fU91fMXf6hqiJjxV4VrUzbyaKqC70GJfKp/PEyR
+        eZ21nwVbGuQQ+QTx5vwANrM/uQUOAPAgTx6IyQIDAQABAoIBAGWruXTZbhulhiX3
+        JwtxsU1nvmH0uQ/s7rudJGBzT9Ezr0q8LBdJAmLN3VPXOhp/ePYGb3kLUeJ5EyCl
+        CMh+ntcr2TqVRctzn2xYpdAQijoQFK3ZLnmceD4S4lKC7GrK0rCEb0IxBKKrmoEe
+        eZ5+9/h3KEXPm9XT6ol4lAxnnRhhAgbVlurIWZ65ln93zuGkeVuyIyqDqdEPfYyH
+        BUFb3uY9ae3z5crZK6rle9/wFMc3UigJq+T+kDSgTyivzF6Z86bABBxWXKrZWCD+
+        U/b6Pe2boK5qzT6IGM7e2Qf/cv0sE/u6l6Yhu6YoAsM691GBbBkVx+GU1zYMeIUm
+        bXXqbVECgYEA4PyQLKR5q3aLYrkLi16hKFKfoPggqCmbqUp14SP65tyGUYzNovjz
+        YmUh17Up52yUdIwpeC5PiHh15ziRzYqh3QH6xenNYb9DvbeC5MFvVf7/gtpsaKer
+        XuFQdKXte7niKNs2/l3zweB+/cgLZJWLY21r77khs2i0uF8UEyPgBp8CgYEAwJrP
+        DdkfyAki3pLhccUPJNts9hgjwJYsPpEdAsK83X7e3P1oFelZqUiT4DiEGAO3ejre
+        w/UKh551Ziasl3/RF2+FxOcLiZqE13vCV83RGRCZkqJg6g1zpeaq/BxFBkPQ8L7L
+        afMm1PiJlZHrDGbaDn9gqUxzPLF6Cyu2azS2v5cCgYEAzx8T51U/gV8vsKHkA9kJ
+        CeMOe5USE13CpNYcsTh7af8IVJkIUolXHnU186wfOKLYBHdoUfBoXZ1wBX4plAyV
+        OK3y3DKCVgNLbKM9iDSft456UU+dz7bT6BQLCmgaufWFQ9GTzhZWKlzu69k2y9F0
+        MgNxA47ufIjfHoDBLWGwgscCgYBgsdfddfIUtTGCWG9CdNJDiL3NVxUr7LjNuIC+
+        EBJNiRJOFBKbXYmcCUnkObtnawZEISYRbwYYTB9YZ3YioRLSFzUrQ2txa9fhbsqE
+        1llxofnXuhm5p4M1+PZCl9a3bHiLRN5OlLocFaLNKnK8yS4UNTLMDAuWnutMjGeK
+        ru5IhQKBgQDDRdtFjxE3CULNoCTFFXrzdlFIuVn+cVU+LYXQtReOnZrkvRaxeeKG
+        e0WogwnayrrypLz+vMY+WHs/MFjl6IbVNZiigEdjlnptg3dT6wRsWp1y7VIlJc9F
+        +Vpz0VJpFedStKJ+7x5rXr1i+e6O9b1ncia9pkVMDYAfJlwzHSdOiQ==
+        -----END RSA PRIVATE KEY-----
+    to:
+      kind: Service
+      name: oso-cent7-zagg-web
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      name: ${DATABASE_SERVICE_NAME}
+    name: ${DATABASE_SERVICE_NAME}
+  spec:
+    clusterIP: ''
+    ports:
+    - name: mysql
+      port: 3306
+      protocol: TCP
+      targetPort: 3306
+    selector:
+      deploymentconfig: ${DATABASE_SERVICE_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      name: oso-cent7-zabbix-server
+    name: oso-cent7-zabbix-server
+  spec:
+    ports:
+    - name: tcp-10050
+      port: 10050
+      protocol: TCP
+      targetPort: 10050
+    - name: tcp-10051
+      port: 10051
+      protocol: TCP
+      targetPort: 10051
+    selector:
+      deploymentconfig: oso-cent7-zabbix-server
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      name: oso-cent7-zabbix-web
+    name: oso-cent7-zabbix-web
+  spec:
+    ports:
+    - name: tcp-80
+      port: 80
+      protocol: TCP
+      targetPort: 8000
+    selector:
+      deploymentconfig: oso-cent7-zabbix-web
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      name: oso-cent7-zagg-web
+    name: oso-cent7-zagg-web
+  spec:
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8000
+    selector:
+      deploymentconfig: oso-cent7-zagg-web
+    sessionAffinity: None
+    type: ClusterIP
+parameters:
+- description: Database service name
+  name: DATABASE_SERVICE_NAME
+  value: mysql
+- description: Username for MySQL user that will be used for accessing the database
+  from: user[A-Z0-9]{3}
+  generate: expression
+  name: MYSQL_USER
+- description: Password for the MySQL user
+  from: '[a-zA-Z0-9]{16}'
+  generate: expression
+  name: MYSQL_PASSWORD
+- description: Database name
+  name: MYSQL_DATABASE
+  value: zabbix
+- description: Zabbix web ui URL
+  name: ZABBIX_WEB_URL
+  value: oso-cent7-zabbix-web
+- description: Zagg web URL
+  name: ZAGG_WEB_URL
+  value: oso-cent7-zagg-web
+- description: Zabbix server
+  name: ZABBIX_SERVER
+  value: oso-cent7-zabbix-server
+- description: Zabbix web user
+  name: ZABBIX_WEB_USER
+  value: Admin
+- description: Zabbix web password
+  name: ZABBIX_WEB_PASSWORD
+  value: zabbix

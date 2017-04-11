@@ -21,7 +21,7 @@ metric_sender_config:
     name: "host-monitoring-{{ lookup('env', 'container_uuid')[0:4] }}"
   zagg:
     active: True
-    url: https://oso-cent7-zagg-web
+    url: https://oso-cent7-zagg-web-monitoring.ospa.pnet.ch
     user: admin
     pass: supersecret
     ssl_verify: False
@@ -82,7 +82,7 @@ zagg_client_config:
   host:
     name: "host-monitoring-{{ lookup('env', 'container_uuid')[0:4] }}"
   zagg:
-    url: http://oso-cent7-zagg-web
+    url: http://oso-cent7-zagg-web-monitoring.ospa.pnet.ch
     user: admin
     pass: supersecret
     ssl_verify: False
